@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Market Prediction</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script> <!-- For Zoom Functionality -->
+    <style>
+        .chart {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+
+        h1 {
+            color: #4a4a8c;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        #fetch-data, #predict-prices {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+
+        #fetch-data:hover, #predict-prices:hover {
+            background-color: #2980b9;
+        }
+
+        #chart-type {
+            padding: 8px;
+            border-radius: 5px;
+            margin-left: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            text-align: center;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Stock Market Prediction</h1>
+
+        <label for="stock-symbol">Enter Stock Symbol (e.g., AAPL, TSLA, MSFT):</label>
+        <input type="text" id="stock-symbol" placeholder="AAPL" value="AAPL">
+
+        <!-- Placing the buttons side by side using a flex container -->
+        <div class="button-group">
+            <button id="fetch-data">Fetch Stock Data</button>
+            <button id="predict-prices">Predict Stock Prices</button>
+        </div>
+
+        <div id="chart-controls">
+            <label for="chart-type">Chart Type:</label>
+            <select id="chart-type">
+                <option value="line">Line</option>
+                <option value="bar">Bar</option>
+                <option value="radar">Radar</option>
+            </select>
+        </div>
+
+        <div id="results">
+            <h2>Stock Data</h2>
+            <p>Data will be displayed here.</p>
+        </div>
+
+        <canvas id="chart" class="chart"></canvas>
+    </div>
+
+    <script>
+        let chartInstance;
+
+        document.getElementById('fetch-data').onclick = function () {
+            const symbol = document.getElementById('stock-symbol').value;
+            fetch(`/api/stock/${symbol}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    document.getElementById('results').innerHTML = `
+                        <h2>Stock Data for ${symbol}</h2>
+                        <p>Open: ${data.open}</p>
+                        <p>Close: ${data.close}</p>
+                        <p>High: ${data.high}</p>
+                        <p>Low: ${data.low}</p>
+                        <p>Volume: ${data.volume}</p>
+                    `;
+                    renderChart(data);
+                })
+                .catch(err => {
+                    console.error('Error fetching stock data:', err);
+                    document.getElementById('results').innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+                });
+        };
+
+        document.getElementById('predict-prices').onclick = function () {
+            const symbol = document.getElementById('stock-symbol').value;
+
+            // Clear the previous prediction
+            let predictionSection = document.querySelector('#predicted-results');
+            if (predictionSection) {
+                predictionSection.remove();  // Remove the old prediction results if they exist
+            }
+
+            fetch(`/api/predict/${symbol}`)
+                .then(response => response.json())
+                .then(prediction => {
+                    // Create a new div to display the prediction
+                    const predictionHTML = `
+                        <div id="predicted-results">
+                            <h3>Predicted Stock Prices for ${symbol}</h3>
+                            <p>Dates: ${prediction.predicted_dates.join(', ')}</p>
+                            <p>Predicted Prices: ${prediction.predicted_prices.join(', ')}</p>
+                        </div>
+                    `;
+
+                    document.getElementById('results').insertAdjacentHTML('beforeend', predictionHTML);  // Insert the new prediction result
+                })
+                .catch(err => {
+                    console.error('Error fetching predicted stock prices:', err);
+                    document.getElementById('results').innerHTML += `<p style="color:red;">Error: ${err.message}</p>`;
+                });
+        };
+
+        function renderChart(data) {
+            const ctx = document.getElementById('chart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy(); // Destroy the previous chart instance to avoid conflicts
+            }
+
+            const chartType = document.getElementById('chart-type').value;
+
+            chartInstance = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: ['Open', 'Close', 'High', 'Low'],
+                    datasets: [{
+                        label: 'Stock Price',
+                        data: [data.open, data.close, data.high, data.low],
+                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true, // Enable zooming with the mouse wheel
+                                },
+                                mode: 'x',
+                            },
+                            pan: {
+                                enabled: true, // Enable panning
+                                mode: 'x',
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
